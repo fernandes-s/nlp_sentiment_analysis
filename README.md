@@ -1,118 +1,101 @@
-# nlp_sentiment_analysis
+# README – Amazon Fine Food Reviews Sentiment Analysis
 
-Sentiment analysis project on the **Amazon Fine Food Reviews** dataset. The goal (so far) is to clean the raw Kaggle data, engineer basic text features, explore the class/length distributions, and get the data ready for modelling (TF–IDF + classifiers).
+## 📌 Overview
+This project applies Natural Language Processing (NLP) and Machine Learning to classify Amazon Fine Food Reviews as **positive** or **negative**.  
+The workflow follows the **CRISP-DM framework**, moving from business understanding to deployment.  
+The final model is deployed as a **Streamlit web application**, allowing users to input a review and receive a sentiment prediction.
 
----
+## 📂 Project Structure
+- `amazon_review_sentiment_eda.ipynb` — Exploratory Data Analysis  
+- `amazon_review_sentiment_modeling_BALANCED.ipynb` — Modeling on balanced dataset  
+- `amazon_review_sentiment_modeling_UNBALANCED.ipynb` — Modeling on unbalanced dataset  
+- `app.py` — Streamlit sentiment classifier  
+- `logreg_tfidf_cv_best.joblib` — Final deployed model  
 
-## 1. Dataset
-- Source: Kaggle – *Amazon Fine Food Reviews* (`Reviews.csv`)
-- Original shape: **568,454 rows × 10 columns**
-- Key fields: `Score` (1–5), `Text`, `Summary`, `Time`, `ProductId`, `UserId`
+# 🧠 CRISP-DM PROCESS
 
----
+## 1. Business Understanding
+The aim is to build a model capable of automatically classifying sentiment in food reviews.  
+Use cases include customer feedback monitoring, product evaluation, and automated scoring.
 
-## 2. Cleaning steps
+## 2. Data Understanding
+- Dataset: Amazon Fine Food Reviews  
+- Includes text reviews and rating scores  
+- Initial analysis revealed class imbalance and textual noise  
+- EDA involved word clouds, n-gram frequency analysis, and distribution inspection
 
-We applied the following in the notebook:
+## 3. Data Preparation
+- Text cleaning: lowercasing, punctuation removal, tokenization, stopword removal  
+- Feature engineering:
+  - **TF-IDF** vectorisation (1–2 grams)
+  - Additional numeric features (word_count, text_length)  
+- Two datasets created:
+  - **Unbalanced** (original distribution)
+  - **Balanced** (equal positive and negative samples)
 
-1. **Drop empty reviews**
-   ```python
-   df = df.dropna(subset=["Text"])
-   ```
-   Ensures every row has actual text.
+## 4. Modeling
+The following machine-learning models were trained and tuned:
+- **Logistic Regression (TF-IDF)**
+- **Linear SVM (TF-IDF)**
+- **ColumnTransformer + Logistic Regression**
+- **MLP (TF-IDF → SVD → Neural Network)**  
 
-2. **Drop duplicate reviews**
-   ```python
-   df = df.drop_duplicates(subset=["Text"])
-   ```
-   Avoids training/evaluating on the exact same review text.
+All models were evaluated using **5-fold Stratified Cross-Validation**, reporting:
+- Macro F1-score  
+- Precision, Recall  
+- Confusion Matrix  
+- ROC-AUC & PR-AUC  
 
-3. **Minimum length filter (text quality)**
-   - First tried `< 10` words, then used **`word_count >= 20`**
-   - Rationale: very short reviews were mostly generic (“Great”, “Loved it”), low information, and many were similar.
+**Best model:**  
+✔ **TF-IDF + Logistic Regression**  
+Selected for deployment due to highest macro-F1 and stability.
 
-4. **Remove extreme-length outliers**
-   ```python
-   df = df[df["word_count"] <= 1000]
-   ```
-   Only **133** rows were dropped (≈0.03%), spread across classes → negligible effect but tidier distribution.
+## 5. Evaluation
+Evaluation compared:
+- Balanced vs. Unbalanced dataset performance  
+- Out-of-fold predictions (no leakage)
+- ROC-AUC and PR-AUC behaviour  
+- Error patterns using confusion matrices  
 
-5. **Create extra features**
-   ```python
-   df["text_len"] = df["Text"].str.len()
-   df["word_count"] = df["Text"].str.split().str.len()
-   df["review_time"] = pd.to_datetime(df["Time"], unit="s")
-   ```
-   These are used in EDA and later can go into a `ColumnTransformer`.
+## 6. Deployment
+A Streamlit web app provides:
+- Sentiment prediction (positive/negative)
+- Model confidence scores  
 
-6. **Create 4-class sentiment from `Score`**
-   ```python
-   def score_to_sentiment_4(s):
-       if s <= 2: return "negative"
-       elif s == 3: return "neutral"
-       elif s == 4: return "positive"
-       else: return "very_positive"
+The deployed model is:  
+**`logreg_tfidf_cv_best.joblib`**
 
-   df["sentiment_4"] = df["Score"].apply(score_to_sentiment_4)
-   ```
+## ✔ Final Notes
+This repository demonstrates a full CRISP-DM workflow for sentiment analysis, covering:
+- Exploratory analysis  
+- Preprocessing  
+- Feature engineering  
+- Model training  
+- Hyperparameter tuning  
+- System evaluation  
+- Web deployment  
 
-**Resulting shape:** **382,120 rows × 13 columns**  
-(so we removed **186,334** low-quality / duplicate / outlier rows)
+Suitable for both academic and production-level applications.
 
----
 
-## 3. EDA highlights
-
-- **Length**: median ≈ **58 words** (IQR ≈ 35–99) → most reviews are short–medium.
-- **Scores**: heavily **skewed to 4–5 stars** (median = 5) → dataset is **imbalanced**.
-- **Helpfulness**: mostly 0–2, very sparse.
-- **Time**: reviews from **1999 → 2012**, concentrated around **2010–2012**.
-
-Because of the score skew, later modelling should report **macro-F1** and/or use **`class_weight="balanced"`**.
-
----
-
-## 4. Plots (EDA)
-
-We generated simple plots to confirm the exploration:
-
-1. **Rating / Score distribution**
-   ```python
-   df["Score"].value_counts().sort_index().plot(kind="bar")
-   ```
-   Shows the 4–5 star dominance.
-
-2. **Word count histogram**
-   ```python
-   df["word_count"].plot(kind="hist", bins=50)
-   ```
-   Shows most reviews under 100 words and a long tail (which we clipped).
-
-3. **Reviews per year (optional)**
-   ```python
-   df.groupby(df["review_time"].dt.year)["Id"].count().plot(kind="bar")
-   ```
-
-These plots support the cleaning decisions (drop short, drop extreme long, handle imbalance).
-
----
-
-## 5. Next steps (not in this repo yet)
-- Train/test split (stratified by `sentiment_4`)
-- TF–IDF vectorisation of `Text`
-- Baseline model: Logistic Regression
-- Stronger model: Linear SVM with `class_weight="balanced"`
-- Compare to auto/benchmark (e.g. AI Studio) and report macro-F1
-
----
-
-## 6. Repo structure (suggested)
+## 6. Repo structure 
 
 ```text
 nlp_sentiment_analysis/
 ├── notebooks/
-│   └── amazon_review_sentiment_eda.ipynb
-├── data/           # optional, small sample only
+│   ├── amazon_review_sentiment_eda.ipynb
+│   ├── amazon_review_sentiment_modeling_BALANCED.ipynb
+│   └── amazon_review_sentiment_modeling_UNBALANCED.ipynb
+│
+├── models/
+│   └── logreg_tfidf_cv_best.joblib        # final deployed model
+│
+├── app/
+│   └── app.py                             # Streamlit sentiment app
+│
+├── data/                           
+│   └── download directly from kaggle    
+│
 ├── README.md
 └── requirements.txt
 ```
@@ -127,6 +110,10 @@ numpy
 scikit-learn
 matplotlib
 seaborn
+imbalanced-learn
+wordcloud
+joblib
+streamlit
 ```
 
 ---
